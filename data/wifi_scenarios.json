@@ -1,0 +1,44 @@
+{
+  "wifi_nodes": [
+    {
+      "ssid": "Home_Secure_Net",
+      "signal_strength": -42,
+      "encryption": "WPA3",
+      "requires_portal_auth": false,
+      "dns_hijack_risk": false,
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "channel": 6,
+      "description": "家庭安全网络，使用最新的 WPA3 加密协议"
+    },
+    {
+      "ssid": "Coffee_Shop_5G",
+      "signal_strength": -58,
+      "encryption": "WPA2",
+      "requires_portal_auth": true,
+      "dns_hijack_risk": false,
+      "mac_address": "AA:BB:CC:DD:EE:02",
+      "channel": 36,
+      "description": "正规咖啡店提供的 WiFi，需要通过手机号验证登录"
+    },
+    {
+      "ssid": "Free_Starbucks_WiFi",
+      "signal_strength": -35,
+      "encryption": "Open",
+      "requires_portal_auth": true,
+      "dns_hijack_risk": true,
+      "mac_address": "AA:BB:CC:DD:EE:03",
+      "channel": 11,
+      "description": "伪造的星巴克免费 WiFi，无任何加密，存在 DNS 劫持风险"
+    },
+    {
+      "ssid": "Airport_Free_WiFi",
+      "signal_strength": -50,
+      "encryption": "WEP",
+      "requires_portal_auth": true,
+      "dns_hijack_risk": true,
+      "mac_address": "AA:BB:CC:DD:EE:04",
+      "channel": 1,
+      "description": "机场公共 WiFi，使用已过时的 WEP 加密，可疑的 Portal 认证页面"
+    }
+  ]
+}
