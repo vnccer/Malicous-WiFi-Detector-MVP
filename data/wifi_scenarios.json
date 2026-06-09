@@ -21,6 +21,16 @@
       "description": "正规咖啡店提供的 WiFi，需要通过手机号验证登录"
     },
     {
+      "ssid": "Coffee_Shop_5G",
+      "signal_strength": -45,
+      "encryption": "Open",
+      "requires_portal_auth": true,
+      "dns_hijack_risk": true,
+      "mac_address": "AA:BB:CC:DD:EE:05",
+      "channel": 48,
+      "description": "伪造的咖啡店同名 WiFi，与正规热点 SSID 相同但无加密，存在 DNS 劫持风险"
+    },
+    {
       "ssid": "Free_Starbucks_WiFi",
       "signal_strength": -35,
       "encryption": "Open",
@@ -39,6 +49,36 @@
       "mac_address": "AA:BB:CC:DD:EE:04",
       "channel": 1,
       "description": "机场公共 WiFi，使用已过时的 WEP 加密，可疑的 Portal 认证页面"
+    },
+    {
+      "ssid": "Hotel_Guest_WiFi",
+      "signal_strength": -62,
+      "encryption": "WPA2",
+      "requires_portal_auth": true,
+      "dns_hijack_risk": false,
+      "mac_address": "AA:BB:CC:DD:EE:06",
+      "channel": 3,
+      "description": "酒店访客网络，WPA2 加密，需 Portal 认证登录"
+    },
+    {
+      "ssid": "CMCC_5G_Free",
+      "signal_strength": -73,
+      "encryption": "Open",
+      "requires_portal_auth": false,
+      "dns_hijack_risk": false,
+      "mac_address": "AA:BB:CC:DD:EE:07",
+      "channel": 7,
+      "description": "移动运营商公共 WiFi，开放网络但无 DNS 劫持风险"
+    },
+    {
+      "ssid": "Library_Public_WiFi",
+      "signal_strength": -55,
+      "encryption": "WPA2",
+      "requires_portal_auth": false,
+      "dns_hijack_risk": false,
+      "mac_address": "AA:BB:CC:DD:EE:08",
+      "channel": 149,
+      "description": "图书馆公共 WiFi，WPA2 加密，安全性较好"
     }
   ]
 }

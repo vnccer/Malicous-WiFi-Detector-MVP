@@ -7,12 +7,18 @@ import os
 from typing import List, Dict, Any
 
 
-# 根据项目结构自动定位 data 目录
 def _get_data_path() -> str:
     """获取 wifi_scenarios.json 的绝对路径。"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(current_dir)
     return os.path.join(project_root, "data", "wifi_scenarios.json")
+
+
+def _get_feedback_path() -> str:
+    """获取 user_feedback.json 的绝对路径。"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    return os.path.join(project_root, "data", "user_feedback.json")
 
 
 def load_mock_data() -> List[Dict[str, Any]]:
@@ -44,3 +50,37 @@ def load_mock_data() -> List[Dict[str, Any]]:
         raise ValueError("⚠️ 未扫描到任何 WiFi 信号（模拟数据为空）。")
 
     return wifi_nodes
+
+
+def save_feedback(text: str) -> bool:
+    """保存用户反馈到本地 JSON 文件。
+
+    Args:
+        text: 用户输入的反馈文本。
+
+    Returns:
+        True 表示保存成功，False 表示保存失败。
+    """
+    from datetime import datetime
+
+    feedback_path = _get_feedback_path()
+    try:
+        existing = []
+        if os.path.exists(feedback_path):
+            with open(feedback_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        existing = []
+
+    existing.append({
+        "timestamp": datetime.now().isoformat(),
+        "content": text.strip(),
+    })
+
+    try:
+        os.makedirs(os.path.dirname(feedback_path), exist_ok=True)
+        with open(feedback_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+        return True
+    except IOError:
+        return False
