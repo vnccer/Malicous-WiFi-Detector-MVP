@@ -203,3 +203,145 @@ wifi_scenarios.json → utils.load_mock_data()
 - 空列表 → 提示"未扫描到 WiFi 信号"
 - 筛选后无结果 → 提示"当前没有标记为「XX风险」的 WiFi 网络"
 - 反馈保存失败 → 提示用户稍后重试
+
+---
+
+## v3.0 技术方案
+
+### 技术栈（同 v2.0）
+- **前端/UI**: Python + Streamlit（container(border=True) 卡片布局）
+- **核心逻辑**: Python 规则引擎（模拟 AI Agent）
+- **数据层**: 本地 JSON 文件 + `data/blacklist_notes.json`（v3.0 新增）
+
+### 目录结构（v3.0 新增）
+```
+data/
+├── wifi_scenarios.json
+├── user_feedback.json
+└── blacklist_notes.json        # v3.0 新增：黑名单备注持久化
+```
+
+### 页面结构（v3.0 新增区域）
+```
+  ── WiFi 列表 ───────────────────────
+  [📋全部(8)] [🔴高风险(2)] [🟡中风险(2)] [🟢低风险(4)]   ← v3.0 计数
+
+  ○ 🔴 Free_Starbucks_WiFi  |  ...  |  Open  🚫已拉黑 🏷「可疑热点」 ← v3.0 备注标签
+
+  ── 诊断报告 ───────────────────────
+  ┌── 风险卡片 ────────────────────┐
+  │  ...                          │
+  └───────────────────────────────┘
+  [ 备注: ______ ]  [ 🚫 加入黑名单 ]    ← v3.0 备注输入
+
+  ── WiFi 对比分析 ────────────────────   ← v3.0 全新区域
+  [ 选择 WiFi A ▼ ]  [ 选择 WiFi B ▼ ]
+        [ ⚖️ 开始对比 ]
+
+  ┌── 对比结果 ────────────────────┐
+  │  📶 A: 85分 +15  ⚡VS⚡  📶 B: 70分  │
+  │  📊 五维度详细对比              │
+  │  高风险 ✅  |  风险等级  |  中风险    │
+  │  Open      |  加密方式  |  WPA2 ✅  │
+  │  ...                          │
+  │  🏆 建议连接：WiFi B           │
+  └───────────────────────────────┘
+```
+
+### 数据流（v3.0 新增）
+```
+用户添加备注 → blacklist_notes[uid] = note
+                     ↓
+        save_blacklist_notes() → data/blacklist_notes.json
+                     ↓
+        下次启动: load_blacklist_notes() → st.session_state
+
+对比流程:
+  选择 WiFi A + WiFi B → 点击「开始对比」
+                     ↓
+        agent.compare_wifi(node_a, node_b)
+                     ↓
+        返回 {score_a, score_b, dimensions[], recommendation, summary}
+                     ↓
+        app.py 渲染双栏评分卡片 + 五维度对比表 + 综合建议
+```
+
+### WiFi 对比评分规则（v3.0 新增）
+综合评分满分 100 分，分四个维度：
+| 维度 | 满分 | 评分规则 |
+|------|------|---------|
+| 加密方式 | 30 | WPA3: 30, WPA2: 22, WEP: 8, Open: 0, 未知: 5 |
+| DNS 劫持风险 | 30 | 无风险: 30, 有风险: 0 |
+| 信号强度 | 25 | ≥ -50dBm: 25, -70~-50: 15, < -70: 5 |
+| Portal 认证 | 15 | 无需认证: 15, 需要认证: 0 |
+
+### 关键设计决策（v3.0）
+
+#### 黑名单备注存储
+- 使用独立 JSON 文件 `data/blacklist_notes.json`
+- 数据结构：`{wifi_uid: note_text}`
+- 备注限制 2-5 字符，用于 icon 展示
+- 与 `st.session_state.blacklist` 解耦，但同步增删
+
+#### WiFi 对比选择器
+- 使用两个 `st.selectbox` 而非 `st.multiselect`
+- 第二个选择框自动排除第一个已选 WiFi
+- 对比基于完整 WiFi 列表（不受当前筛选影响）
+
+#### 对比结果渲染
+- 综合评分使用 `st.metric` 组件，差值三角形指示领先方
+- 五维度对比使用自定义 HTML，优胜方绿色高亮 + ✅ 标记
+- 综合建议使用 `st.container(border=True)` 卡片
+
+---
+
+## v4.0 技术方案
+
+### 迭代背景
+v3.0 上线后发现三个交互缺陷：
+1. 未扫描时对比区域完全隐藏，用户感知不到该功能存在
+2. `st.session_state.blacklist` 仅存内存，页面刷新后丢失，但备注文件仍保留，导致数据不一致
+3. 黑名单按钮仅高风险可见，用户无法拉黑中/低风险的伪造热点
+
+### 变更点
+
+#### 1. 对比区域始终可见
+```python
+# 旧: if st.session_state.wifi_list and len(...) >= 2: <全部内容>
+# 新: 标题始终渲染，if/else 分支控制提示文案 vs 交互组件
+if not st.session_state.wifi_list or len(st.session_state.wifi_list) < 2:
+    st.info("请先扫描周边 WiFi，扫描完成后可在此选择两个网络进行并排对比分析。")
+else:
+    st.caption("选择两个 WiFi 进行并排对比...")
+    # ... 交互组件
+```
+
+#### 2. 黑名单持久化
+- **方案**：`blacklist` 列表与 `blacklist_notes` 字典的 keys 保持同步
+- 启动时：加载 `blacklist_notes.json` → 用 `list(notes.keys())` 恢复 blacklist
+- 增删时：两者同步操作 + 写文件
+- 无需新增独立文件，复用现有 `blacklist_notes.json`
+
+```python
+if key == "blacklist_notes":
+    notes = load_blacklist_notes()
+    st.session_state["blacklist_notes"] = notes
+    st.session_state["blacklist"] = list(notes.keys())
+```
+
+#### 3. 全风险等级可拉黑
+- 移除 `if report_risk == "高":` 守卫条件
+- 黑名单按钮对所有诊断完成的 WiFi 可见
+- 黑名单管理区：用 `quick_risk(node)` + `RISK_EMOJI` 替代硬编码 🔴
+
+### 关键设计决策（v4.0）
+
+#### 黑名单数据一致性
+- `blacklist` 与 `blacklist_notes` 不再是解耦关系，而是派生关系
+- `blacklist = list(blacklist_notes.keys())` 始终为真
+- 优势：单一数据源（文件），消除不一致状态
+
+#### 对比区域 UX
+- 标题和分隔线始终渲染 → 用户始终知道此功能存在
+- 未扫描时显示引导文案 → 降低学习成本
+- 扫描后自动切换到交互模式 → 用户无感知切换

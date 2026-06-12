@@ -52,6 +52,51 @@ def load_mock_data() -> List[Dict[str, Any]]:
     return wifi_nodes
 
 
+def _get_blacklist_notes_path() -> str:
+    """获取 blacklist_notes.json 的绝对路径。"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    return os.path.join(project_root, "data", "blacklist_notes.json")
+
+
+def load_blacklist_notes() -> Dict[str, str]:
+    """从本地 JSON 文件加载黑名单备注数据。
+
+    Returns:
+        {wifi_uid: note_text} 映射字典，文件不存在时返回空字典。
+    """
+    path = _get_blacklist_notes_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def save_blacklist_notes(notes: Dict[str, str]) -> bool:
+    """保存黑名单备注到本地 JSON 文件。
+
+    Args:
+        notes: {wifi_uid: note_text} 映射字典。
+
+    Returns:
+        True 表示保存成功，False 表示保存失败。
+    """
+    path = _get_blacklist_notes_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(notes, f, ensure_ascii=False, indent=2)
+        return True
+    except IOError:
+        return False
+
+
 def save_feedback(text: str) -> bool:
     """保存用户反馈到本地 JSON 文件。
 

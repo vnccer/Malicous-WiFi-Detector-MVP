@@ -5,7 +5,7 @@
 不涉及任何真实的大模型 API 调用。
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 
 def _build_reasons(encryption: str, dns_hijack: bool, portal_auth: bool, ssid: str) -> List[str]:
@@ -130,4 +130,220 @@ def analyze_wifi_risk(wifi_data: Dict[str, Any]) -> Dict[str, Any]:
         "intent_analysis": intent_analysis,
         "security_advice": security_advice,
         "diagnosis_reasons": reasons,
+    }
+
+
+def _encryption_rank(enc: str) -> int:
+    """加密方式优劣排名（数值越大越安全）。"""
+    ranking = {"WPA3": 4, "WPA2": 3, "WEP": 1, "Open": 0}
+    return ranking.get(enc, 0)
+
+
+def _signal_rank(strength: int) -> int:
+    """信号强度优劣排名（数值越大越好）。"""
+    if strength >= -50:
+        return 3
+    elif strength >= -70:
+        return 2
+    else:
+        return 1
+
+
+def _calc_score(node: Dict[str, Any]) -> int:
+    """计算 WiFi 综合安全评分（满分 100）。"""
+    score = 0
+    enc = node.get("encryption", "")
+    dns = node.get("dns_hijack_risk", False)
+    signal = node.get("signal_strength", -100)
+    portal = node.get("requires_portal_auth", False)
+
+    # 加密方式：满分 30
+    enc_scores = {"WPA3": 30, "WPA2": 22, "WEP": 8, "Open": 0}
+    score += enc_scores.get(enc, 5)
+
+    # DNS 劫持风险：满分 30
+    if not dns:
+        score += 30
+
+    # 信号强度：满分 25
+    if signal >= -50:
+        score += 25
+    elif signal >= -70:
+        score += 15
+    else:
+        score += 5
+
+    # Portal 认证：满分 15（无 Portal 更安全）
+    if not portal:
+        score += 15
+
+    return score
+
+
+def compare_wifi(wifi_a: Dict[str, Any], wifi_b: Dict[str, Any]) -> Dict[str, Any]:
+    """对比两个 WiFi 网络，给出连接建议。
+
+    从风险等级、加密方式、信号强度、DNS 劫持风险、Portal 认证
+    五个维度进行综合对比，生成并排分析报告。
+
+    Args:
+        wifi_a: 第一个 WiFi 节点字典。
+        wifi_b: 第二个 WiFi 节点字典。
+
+    Returns:
+        对比报告字典，包含：
+        - score_a / score_b: 综合评分
+        - dimensions: 各维度对比列表
+        - recommendation: 建议连接方（"A" / "B" / "持平"）
+        - summary: 综合建议文本
+    """
+    risk_a = analyze_wifi_risk(wifi_a)["risk_level"]
+    risk_b = analyze_wifi_risk(wifi_b)["risk_level"]
+
+    RISK_ORDER = {"高": 0, "中": 1, "低": 2}
+
+    dimensions: List[Dict[str, Any]] = []
+
+    # ── 维度 1: 风险等级对比 ──
+    dim_risk = {
+        "name": "风险等级",
+        "icon": "⚠️",
+        "value_a": f"{risk_a}风险",
+        "value_b": f"{risk_b}风险",
+    }
+    if RISK_ORDER[risk_a] > RISK_ORDER[risk_b]:
+        dim_risk["winner"] = "A"
+        dim_risk["detail"] = f"{wifi_a['ssid']} 风险更低，更安全"
+    elif RISK_ORDER[risk_a] < RISK_ORDER[risk_b]:
+        dim_risk["winner"] = "B"
+        dim_risk["detail"] = f"{wifi_b['ssid']} 风险更低，更安全"
+    else:
+        dim_risk["winner"] = "持平"
+        dim_risk["detail"] = "两者风险等级相同"
+    dimensions.append(dim_risk)
+
+    # ── 维度 2: 加密方式对比 ──
+    enc_a = wifi_a.get("encryption", "未知")
+    enc_b = wifi_b.get("encryption", "未知")
+    dim_enc = {
+        "name": "加密方式",
+        "icon": "🔐",
+        "value_a": enc_a,
+        "value_b": enc_b,
+    }
+    rank_a = _encryption_rank(enc_a)
+    rank_b = _encryption_rank(enc_b)
+    if rank_a > rank_b:
+        dim_enc["winner"] = "A"
+        dim_enc["detail"] = f"{enc_a} 安全性优于 {enc_b}"
+    elif rank_a < rank_b:
+        dim_enc["winner"] = "B"
+        dim_enc["detail"] = f"{enc_b} 安全性优于 {enc_a}"
+    else:
+        dim_enc["winner"] = "持平"
+        dim_enc["detail"] = "两者加密方式相同"
+    dimensions.append(dim_enc)
+
+    # ── 维度 3: 信号强度对比 ──
+    sig_a = wifi_a.get("signal_strength", -100)
+    sig_b = wifi_b.get("signal_strength", -100)
+    dim_sig = {
+        "name": "信号强度",
+        "icon": "📶",
+        "value_a": f"{sig_a} dBm",
+        "value_b": f"{sig_b} dBm",
+    }
+    sr_a = _signal_rank(sig_a)
+    sr_b = _signal_rank(sig_b)
+    if sr_a > sr_b:
+        dim_sig["winner"] = "A"
+        dim_sig["detail"] = f"{wifi_a['ssid']} 信号更强（{sig_a} vs {sig_b} dBm）"
+    elif sr_a < sr_b:
+        dim_sig["winner"] = "B"
+        dim_sig["detail"] = f"{wifi_b['ssid']} 信号更强（{sig_b} vs {sig_a} dBm）"
+    else:
+        dim_sig["winner"] = "持平"
+        dim_sig["detail"] = "两者信号强度相当"
+    dimensions.append(dim_sig)
+
+    # ── 维度 4: DNS 劫持风险对比 ──
+    dns_a = wifi_a.get("dns_hijack_risk", False)
+    dns_b = wifi_b.get("dns_hijack_risk", False)
+    dim_dns = {
+        "name": "DNS 劫持",
+        "icon": "🕵️",
+        "value_a": "⚠️ 有风险" if dns_a else "✅ 安全",
+        "value_b": "⚠️ 有风险" if dns_b else "✅ 安全",
+    }
+    if not dns_a and dns_b:
+        dim_dns["winner"] = "A"
+        dim_dns["detail"] = f"{wifi_a['ssid']} 无 DNS 劫持风险"
+    elif dns_a and not dns_b:
+        dim_dns["winner"] = "B"
+        dim_dns["detail"] = f"{wifi_b['ssid']} 无 DNS 劫持风险"
+    elif not dns_a and not dns_b:
+        dim_dns["winner"] = "持平"
+        dim_dns["detail"] = "两者均无 DNS 劫持风险"
+    else:
+        dim_dns["winner"] = "持平"
+        dim_dns["detail"] = "两者均存在 DNS 劫持风险，都不建议连接"
+    dimensions.append(dim_dns)
+
+    # ── 维度 5: Portal 认证对比 ──
+    portal_a = wifi_a.get("requires_portal_auth", False)
+    portal_b = wifi_b.get("requires_portal_auth", False)
+    dim_portal = {
+        "name": "Portal 认证",
+        "icon": "🔗",
+        "value_a": "需要认证" if portal_a else "无需认证",
+        "value_b": "需要认证" if portal_b else "无需认证",
+    }
+    if not portal_a and portal_b:
+        dim_portal["winner"] = "A"
+        dim_portal["detail"] = f"{wifi_a['ssid']} 无需 Portal 认证，减少钓鱼风险"
+    elif portal_a and not portal_b:
+        dim_portal["winner"] = "B"
+        dim_portal["detail"] = f"{wifi_b['ssid']} 无需 Portal 认证，减少钓鱼风险"
+    elif not portal_a and not portal_b:
+        dim_portal["winner"] = "持平"
+        dim_portal["detail"] = "两者均无需 Portal 认证"
+    else:
+        dim_portal["winner"] = "持平"
+        dim_portal["detail"] = "两者均需 Portal 认证，请注意认证页面真伪"
+    dimensions.append(dim_portal)
+
+    # ── 综合评分与建议 ──
+    score_a = _calc_score(wifi_a)
+    score_b = _calc_score(wifi_b)
+
+    win_count_a = sum(1 for d in dimensions if d["winner"] == "A")
+    win_count_b = sum(1 for d in dimensions if d["winner"] == "B")
+
+    if score_a > score_b:
+        recommendation = "A"
+        summary = (
+            f"综合 5 个维度对比，**{wifi_a['ssid']}** 在 {win_count_a} 个维度上表现更优"
+            f"（综合评分 {score_a} vs {score_b}），建议优先连接此网络。"
+        )
+    elif score_b > score_a:
+        recommendation = "B"
+        summary = (
+            f"综合 5 个维度对比，**{wifi_b['ssid']}** 在 {win_count_b} 个维度上表现更优"
+            f"（综合评分 {score_b} vs {score_a}），建议优先连接此网络。"
+        )
+    else:
+        recommendation = "持平"
+        summary = (
+            f"两者综合评分相同（均为 {score_a} 分），安全性相当。"
+            f"可根据信号稳定性或个人偏好选择连接。"
+        )
+
+    return {
+        "ssid_a": wifi_a["ssid"],
+        "ssid_b": wifi_b["ssid"],
+        "score_a": score_a,
+        "score_b": score_b,
+        "dimensions": dimensions,
+        "recommendation": recommendation,
+        "summary": summary,
     }
